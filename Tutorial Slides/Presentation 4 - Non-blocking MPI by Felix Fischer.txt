@@ -1,0 +1,158 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+#include "heat.h"
+#include "helper.h"
+#include <omp.h>
+
+double jacobi(double *h_new, double *h_old, int niters, int energy_intensity, int n, int iter_energy,  const int nsources, int sources[nsources][2], int rank, int size, int px, int py, int num_threads, MPI_Comm comm, int output)
+{
+
+    omp_set_num_threads(num_threads);
+
+    int n_cell = n/px;
+
+    h_old = (double *)calloc(1, (n_cell + 2) * (n_cell + 2) * sizeof(double)); // extended with halos of width 1
+    h_new = (double *)calloc(1, (n_cell + 2) * (n_cell + 2) * sizeof(double)); // extended with halos of width 1
+    double *tmp;
+
+    int left_neigh, right_neigh, upper_neigh, lower_neigh;
+
+    double* left_buffer = (double*) calloc(1, (n_cell + 2) * sizeof(double));
+    double* right_buffer = (double*) calloc(1, (n_cell + 2) * sizeof(double));
+    double* upper_buffer = (double*) calloc(1, (n_cell + 2) * sizeof(double));
+    double* lower_buffer = (double*) calloc(1, (n_cell + 2) * sizeof(double));
+
+    left_neigh = rank - 1;
+    right_neigh = rank + 1;
+    upper_neigh = rank - px;
+    lower_neigh = rank + px;
+
+
+    for (int iter = 0; iter < niters; ++iter)
+    {
+
+        // Recieve the halos into the buffer
+        MPI_Request reqRecv[4];
+        MPI_Status status;
+
+        if(iter != 0) {
+            if (upper_neigh >= 0) {
+                MPI_Irecv(upper_buffer, n_cell + 2, MPI_DOUBLE, upper_neigh, iter, comm, &(reqRecv[0]));
+                MPI_Wait(&(reqRecv[0]), &status);
+            }
+            if (lower_neigh <= (px*px-1)) {
+                MPI_Irecv(lower_buffer, n_cell + 2, MPI_DOUBLE, lower_neigh, iter, comm, &(reqRecv[1]));
+                MPI_Wait(&(reqRecv[1]), &status);
+            }
+            if ((rank)%px != 0) {
+                MPI_Irecv(left_buffer, n_cell + 2, MPI_DOUBLE, left_neigh, iter, comm, &(reqRecv[2]));
+                MPI_Wait(&(reqRecv[2]), &status);
+            }
+            if ((rank+1)%px != 0) {
+                MPI_Irecv(right_buffer, n_cell + 2, MPI_DOUBLE, right_neigh, iter, comm, &(reqRecv[3]));
+                MPI_Wait(&(reqRecv[3]), &status);
+            }
+
+            // copy the buffer into the halos of the matrix
+            #pragma omp parallel for
+            for (int k = 0; k < n_cell + 2; ++k) {
+                if (upper_neigh >= 0) {
+                    h_old[map(0, k, n_cell + 2)] = upper_buffer[k];
+                }
+                if (lower_neigh <= (px*px-1)) {
+                    h_old[map(n_cell + 1, k, n_cell + 2)] = lower_buffer[k];
+                }
+                if ((rank)%px != 0) {
+                    h_old[map(k, 0, n_cell + 2)] = left_buffer[k];
+                }
+                if ((rank+1)%px != 0) {
+                    h_old[map(k, n_cell + 1, n_cell + 2)] = right_buffer[k];
+                }
+            }
+        }
+
+
+
+        // solve heat equation
+        #pragma omp parallel for
+        for (int j = 1; j < n_cell + 1; ++j)
+        {
+            for (int i = 1; i < n_cell + 1; ++i)
+            {
+                h_new[map(i, j ,n_cell+2)] = h_old[map(i, j, n_cell+2)] / 2.0 + (h_old[map(i - 1, j, n_cell+2)] + h_old[map(i + 1, j, n_cell+2)] + h_old[map(i, j - 1, n_cell+2)] + h_old[map(i, j + 1, n_cell+2)]) / 4.0 / 2.0;
+            }
+        }
+
+
+        // add the heat-source terms
+        if (iter < iter_energy)
+        {
+            #pragma omp parallel for
+            for (int i = 0; i < nsources; ++i)
+            {
+
+                int source_i = sources[i][0] % n_cell;
+                int source_j = sources[i][1] % n_cell;
+
+                int block_i = sources[i][0] / n_cell;
+                int block_j = sources[i][1] / n_cell;
+
+                if (rank == (px * block_i + block_j)) {
+                    h_new[map(source_i + 1, source_j + 1, n_cell + 2)] += energy_intensity; // heat rate
+                }
+            }
+        }
+
+
+        MPI_Request reqSend[4];
+
+        // send halos to the other proscesses
+        if(iter != niters-1) {
+
+            // copy the halos back to the buffer
+            #pragma omp parallel for
+            for (int k = 0; k < n_cell + 2; ++k) {
+                if (upper_neigh >= 0) {
+                    upper_buffer[k] = h_new[map(1, k, n_cell + 2)];
+                }
+                if (lower_neigh <= (px * px - 1)) {
+                    lower_buffer[k] = h_new[map(n_cell, k, n_cell + 2)];
+                }
+                if ((rank)%px != 0) {
+                    left_buffer[k] = h_new[map(k, 1, n_cell + 2)];
+                }
+                if ((rank+1)%px != 0) {
+                    right_buffer[k] = h_new[map(k, n_cell, n_cell + 2)];
+                }
+            }
+
+
+            if (upper_neigh >= 0) {
+                MPI_Isend(upper_buffer, n_cell + 2, MPI_DOUBLE, upper_neigh, iter+1, comm, &(reqSend[0]));
+                MPI_Wait(&(reqSend[0]), &status);
+            }
+            if (lower_neigh <= (px*px - 1)) {
+                MPI_Isend(lower_buffer, n_cell + 2, MPI_DOUBLE, lower_neigh, iter+1, comm, &(reqSend[1]));
+                MPI_Wait(&(reqSend[1]), &status);
+            }
+            if ((rank)%px != 0) {
+                MPI_Isend(left_buffer, n_cell + 2, MPI_DOUBLE, left_neigh, iter+1, comm, &(reqSend[2]));
+                MPI_Wait(&(reqSend[2]), &status);
+            }
+            if ((rank+1)%px != 0) {
+                MPI_Isend(right_buffer, n_cell + 2, MPI_DOUBLE, right_neigh, iter+1, comm, &(reqSend[3]));
+                MPI_Wait(&(reqSend[3]), &status);
+            }
+        }
+
+
+        tmp = h_new; // swap arrays
+        h_new = h_old;
+        h_old = tmp;
+    }
+
+    if (output) printarr(h_new, n_cell, rank);
+
+    return calculate_total_heat(h_new, n_cell);
+}
