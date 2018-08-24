@@ -10,22 +10,22 @@
 @ Collector PID            : 24199
 @ Final Output Dir         : .
 @ Report generation        : Single collector task
-@ MPI Task Assignment      : 0 God
-@ MPI Task Assignment      : 1 God
-@ MPI Task Assignment      : 2 God
-@ MPI Task Assignment      : 3 God
-@ MPI Task Assignment      : 4 God
-@ MPI Task Assignment      : 5 God
-@ MPI Task Assignment      : 6 God
-@ MPI Task Assignment      : 7 God
-@ MPI Task Assignment      : 8 God
-@ MPI Task Assignment      : 9 God
-@ MPI Task Assignment      : 10 God
-@ MPI Task Assignment      : 11 God
-@ MPI Task Assignment      : 12 God
-@ MPI Task Assignment      : 13 God
-@ MPI Task Assignment      : 14 God
-@ MPI Task Assignment      : 15 God
+@ MPI Task Assignment      : 0 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 1 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 2 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 3 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 4 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 5 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 6 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 7 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 8 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 9 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 10 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 11 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 12 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 13 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 14 DESKTOP-GL6GF3M
+@ MPI Task Assignment      : 15 DESKTOP-GL6GF3M
 
 ---------------------------------------------------------------------------
 @--- MPI Time (seconds) ---------------------------------------------------
